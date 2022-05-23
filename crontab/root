@@ -1,0 +1,4 @@
+# Unbound
+1 0 1 */6 * wget -O root.hints https://www.internic.net/domain/named.root
+2 0 1 */6 * mkdir -p /tmp/unbound
+3 0 1 */6 * mv root.hints /tmp/unbound/root.hints

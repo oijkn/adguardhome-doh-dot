@@ -1,0 +1,8 @@
+# Ignore sh files
+*.sh
+
+# Ignore scripts directory
+scripts/
+
+# Ignore IDE files
+.idea/

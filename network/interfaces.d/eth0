@@ -1,0 +1,19 @@
+# Ethernet interface (eth0)
+allow-hotplug eth0
+iface eth0 inet static
+    address 192.168.1.100
+    netmask 255.255.255.0
+    gateway 192.168.1.1
+    dns-nameservers 192.168.1.110
+
+    # create a new network macvlan interface on top of eth0
+    pre-up ip link add macvlan-shim link eth0 type macvlan mode bridge
+
+    # assign an IP and the network space to the new network interface
+    pre-up ip addr add 192.168.1.99/32 dev macvlan-shim
+
+    # bring up the new network interface
+    up ip link set macvlan-shim up
+
+    # add a route to the container
+    post-up ip route add 192.168.1.110/32 dev macvlan-shim

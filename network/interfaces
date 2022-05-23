@@ -1,0 +1,6 @@
+# The Loopback network interface
+auto lo
+iface lo inet loopback
+
+# Include files from /etc/network/interfaces.d:
+source /etc/network/interfaces.d/*
