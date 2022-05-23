@@ -107,9 +107,20 @@ nameserver 192.168.1.110  # IP of the container for AdGuardHome, configure it to
 
 ## ☕ How to use it ?
 
-After configuring the docker-compose.yml file, you can start the containers with:
-
-`docker-compose up -d`
+- After configuring the docker-compose.yml file, you have to start the containers with: `docker-compose up -d`
+- Then, you can access the AdGuardHome web interface at: `http://<IP_of_the_container_for_AdGuardHome>:3000/`
+- `IMPORTANT`: In Listen Interfaces option choose `eth0` (or another name, it depends on your system) and select next
+- Set up `username` & `password` and then login admin panel (port :80)
+- `IMPORTANT`: In general settings, set "Query logs retention" to 24 hours. (I read that for some people logs fill up which slows down Pi and needing a reboot)
+- In AdGuard homepage under settings, select "DNS settings"
+  - Delete everything from both _**Upstream**_ and _**Bootstrap DNS**_ server options and add the following for:
+  - DNS over TLS (Unbound) : `127.0.0.1:53`
+  - DNS over HTTPS/Oblivious DNS over HTTPS :
+     - `127.0.0.1:5053` (Cloudflared tunnel)
+  - TLS forwarder (Stubby) : `127.0.0.1:8053` 
+- `IMPORTANT:` Check "<a href="https://adguard.com/en/blog/in-depth-review-adguard-home.html#dns"><b>Parallel Request</b></a>" option for DNS resolvers to work simultaneously.
+- Then in DNS setting look for DNS cache configuration section and set cache size to 0 (caching is already handled by Unbound) and click apply.
+- Click apply and test upstreams
 
 ## 📝 Notes
 
