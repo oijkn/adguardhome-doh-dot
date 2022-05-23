@@ -105,7 +105,7 @@ nameserver 192.168.1.110  # IP of the container for AdGuardHome, configure it to
 ```
 
 
-## ☕ Docker usage
+## ☕ How to use it ?
 
 After configuring the docker-compose.yml file, you can start the containers with:
 
