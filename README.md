@@ -75,6 +75,36 @@ networks:
             rpi-srv: 192.168.1.100                                     # Reserved for RPi Server (IP of the host)
 ```
 
+**3. Configure the host**
+
+- Before running our DNS resolvers, it is a good idea to turn off [systemd-resolved](https://www.freedesktop.org/software/systemd/man/systemd-resolved.service.html).
+
+  Edit the file `/etc/systemd/resolved.conf` as below :
+
+```toml
+[Resolve]
+#DNS=
+#FallbackDNS=
+#Domains=
+#LLMNR=yes
+#MulticastDNS=yes
+#DNSSEC=allow-downgrade
+#DNSOverTLS=no
+#Cache=yes
+DNSStubListener=no        # Change this value to 'no' and uncomment
+#ReadEtcHosts=yes
+
+```
+
+- Then, we need to configure the DNS resolvers.
+
+  Edit the file `/etc/resolv.conf` as below :
+
+```
+nameserver 192.168.1.110  # IP of the container for AdGuardHome, configure it to your needs
+```
+
+
 ## ☕ Docker usage
 
 After configuring the docker-compose.yml file, you can start the containers with:
