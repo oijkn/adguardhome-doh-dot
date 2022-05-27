@@ -49,18 +49,6 @@ services:
         ipv4_address: 192.168.1.110                                    # IP of the container for AdGuardHome, configure it to your needs
     restart: unless-stopped
 
-  cron:
-    image: alpine:latest
-    container_name: cron
-    hostname: rpi-cron
-    command: crond -f -d 8
-    depends_on:
-      - adguardhome
-    volumes:
-      - <path_to_data>/crontab/root:/etc/crontabs/root:z               # Configure '<path_to_data>' to your needs
-      - <path_to_data>/unbound/root.hints:/tmp/unbound/root.hints      # Configure '<path_to_data>' to your needs
-    restart: unless-stopped
-
 networks:
   macvlan0:
     driver: macvlan
@@ -75,7 +63,33 @@ networks:
             rpi-srv: 192.168.1.100                                     # Reserved for RPi Server (IP of the host)
 ```
 
-**3. Configure the host**
+**3. Configure the [eth0](https://github.com/oijkn/adguardhome-doh-dot/blob/main/network/interfaces.d/eth0) for AdGuardHome container**
+
+You must configure the interface eth0 as like above. Same subnet, same gateway, same IP for the container etc...
+
+````shell
+# Ethernet interface (eth0)
+allow-hotplug eth0
+iface eth0 inet static
+    address 192.168.1.100
+    netmask 255.255.255.0
+    gateway 192.168.1.1
+    dns-nameservers 192.168.1.110
+
+    # create a new network macvlan interface on top of eth0
+    pre-up ip link add macvlan-shim link eth0 type macvlan mode bridge
+
+    # assign an IP and the network space to the new network interface
+    pre-up ip addr add 192.168.1.99/32 dev macvlan-shim
+
+    # bring up the new network interface
+    up ip link set macvlan-shim up
+
+    # add a route to the container
+    post-up ip route add 192.168.1.110/32 dev macvlan-shim
+````
+
+**4. Configure the host**
 
 - Before running our DNS resolvers, it is a good idea to turn off [systemd-resolved](https://www.freedesktop.org/software/systemd/man/systemd-resolved.service.html).
 
@@ -115,8 +129,7 @@ nameserver 192.168.1.110  # IP of the container for AdGuardHome, configure it to
 - In AdGuard homepage under settings, select "DNS settings"
   - Delete everything from both _**Upstream**_ and _**Bootstrap DNS**_ server options and add the following for:
   - DNS over TLS (Unbound) : `127.0.0.1:53`
-  - DNS over HTTPS/Oblivious DNS over HTTPS :
-     - `127.0.0.1:5053` (Cloudflared tunnel)
+  - DNS over HTTPS/Oblivious DNS over HTTPS : `127.0.0.1:5053` (Cloudflared tunnel)
   - TLS forwarder (Stubby) : `127.0.0.1:8053` 
 - `IMPORTANT:` Check "<a href="https://adguard.com/en/blog/in-depth-review-adguard-home.html#dns"><b>Parallel Request</b></a>" option for DNS resolvers to work simultaneously.
 - Then in DNS setting look for DNS cache configuration section and set cache size to 0 (caching is already handled by Unbound) and click apply.
