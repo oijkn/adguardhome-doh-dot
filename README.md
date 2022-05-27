@@ -5,7 +5,7 @@
 - Official **AdGuardHome Docker** with both **DoH** (DNS over HTTPS) and **DoT** (DNS over TLS) clients.
 Don't browse the Internet insecurely by sending your DNS requests in clear text !
 - Special thanks to [Trinib](https://github.com/trinib/AdGuard-WireGuard-Unbound-Cloudflare) for his amazing work on [AdGuard-WireGuard-Unbound-Cloudflare](https://github.com/trinib/AdGuard-WireGuard-Unbound-Cloudflare/blob/main/README.md) .
-- Image built for Raspberry Pi (arm32/v7,amr64,amd64).
+- Image built for Raspberry Pi (arm32/v7,arm64,amd64).
 
 ## 🚀 Installation
 
