@@ -29,18 +29,6 @@ services:
         ipv4_address: 192.168.1.110  # IP of the container
     restart: unless-stopped
 
-  cron:
-    image: alpine:latest
-    container_name: cron
-    hostname: rpi-cron
-    command: crond -f -d 8
-    depends_on:
-      - adguardhome
-    volumes:
-      - ./crontab/root:/etc/crontabs/root:z
-      - ./unbound/root.hints:/tmp/unbound/root.hints
-    restart: unless-stopped
-
 networks:
   macvlan0:
     driver: macvlan

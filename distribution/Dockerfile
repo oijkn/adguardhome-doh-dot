@@ -1,14 +1,26 @@
-FROM arm32v7/debian:11-slim as base
+FROM debian:11-slim as base
 
+MAINTAINER "Oijkn <https://github.com/oijkn>"
+LABEL name="oijkn/adguardhome-doh-dot"
+
+# Set up the environment
 ENV container docker
 ENV LC_ALL C
 ENV DEBIAN_FRONTEND noninteractive
+
+
+# Raspberry Pi 32 bit = armhf
+# Raspberry Pi 64 bit = arm64
+# PC 64 bit = amd64
+# PC 32 bit = i386
+
 
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
                apt-file \
                ca-certificates \
+               cron \
                curl \
                libcap2-bin \
                procps \
@@ -36,11 +48,28 @@ RUN wget -qO install.sh https://raw.githubusercontent.com/AdguardTeam/AdGuardHom
     && ./install.sh \
     && rm -f install.sh
 
-# Update AdGuardHome with the latest version
-RUN wget -qO update.tar.gz https://static.adguard.com/adguardhome/release/AdGuardHome_linux_armv7.tar.gz \
-    && tar -xzf update.tar.gz \
-    && cp AdGuardHome/AdGuardHome /opt/AdGuardHome \
-    && rm -rf update.tar.gz AdGuardHome/
+# Update AdGuardHome with the latest version depends on the architecture
+RUN set -eux; \
+    ARCH="$(dpkg --print-architecture)"; \
+    case "$ARCH" in \
+        aarch64|arm64) \
+            ADGH_URL="https://static.adguard.com/adguardhome/release/AdGuardHome_linux_arm64.tar.gz"; \
+            ;; \
+        armhf|arm) \
+            ADGH_URL="https://static.adguard.com/adguardhome/release/AdGuardHome_linux_armv7.tar.gz"; \
+            ;; \
+        amd64|x86_64) \
+            ADGH_URL="https://static.adguard.com/adguardhome/release/AdGuardHome_linux_amd64.tar.gz"; \
+            ;; \
+        *) \
+            echo "Unsupported architecture: $ARCH"; \
+            exit 1; \
+            ;; \
+    esac; \
+    wget -qO update.tar.gz "${ADGH_URL}"; \
+    tar -xzf update.tar.gz; \
+    cp -f AdGuardHome/AdGuardHome /opt/AdGuardHome; \
+    rm -rf update.tar.gz AdGuardHome/;
 
 # Create needed directories
 RUN mkdir -p /opt/AdGuardHome/conf \
@@ -60,10 +89,27 @@ RUN wget -O root.hints https://www.internic.net/domain/named.root \
 # Set up the unbound configuration
 COPY unbound/unbound.conf /etc/unbound/unbound.conf.d/unbound.conf
 
-# Download and install cloudflare
-RUN wget -O /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/download/2022.3.1/cloudflared-linux-arm \
-    && chmod +x /usr/local/bin/cloudflared \
-    && cloudflared -v
+# Download and install cloudflare depend on the architecture
+RUN set -eux; \
+    ARCH="$(dpkg --print-architecture)"; \
+    case "$ARCH" in \
+        aarch64|arm64) \
+            CLOUDFLARE_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"; \
+            ;; \
+        armhf|arm) \
+            CLOUDFLARE_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm"; \
+            ;; \
+        amd64|x86_64) \
+            CLOUDFLARE_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"; \
+            ;; \
+        *) \
+            echo "Unsupported architecture: $ARCH"; \
+            exit 1; \
+            ;; \
+    esac; \
+    wget -qO /usr/local/bin/cloudflared "${CLOUDFLARE_URL}"; \
+    chmod +x /usr/local/bin/cloudflared; \
+    cloudflared --version;
 
 # Configure cloudflared options
 RUN echo "CLOUDFLARED_OPTS=--port 5053 --upstream https://1.1.1.1/dns-query --upstream https://1.0.0.1/dns-query --upstream https://2606:4700:4700::1111/dns-query --upstream https://2606:4700:4700::1001/dns-query" >> /etc/default/cloudflared
@@ -80,10 +126,16 @@ RUN rm -f /etc/stubby/stubby.yml
 COPY stubby/stubby.yml /etc/stubby/stubby.yml
 RUN sed -i 's,DynamicUser=true,#DynamicUser=true,g' /lib/systemd/system/stubby.service
 
+# Configure crontab
+COPY crontab/root /var/spool/cron/crontabs/root
+RUN chmod 600 /var/spool/cron/crontabs/root \
+    && chown root:crontab /var/spool/cron/crontabs/root
+
 # Enable and start services
 RUN systemctl enable AdGuardHome \
     && systemctl enable unbound \
     && systemctl enable cloudflared \
+    && systemctl enable cron \
     && systemctl enable stubby
 
 # Mount volume for systemd-sysv
@@ -92,4 +144,5 @@ VOLUME [ "/sys/fs/cgroup" ]
 # Run systemd-sysv service
 CMD ["/lib/systemd/systemd"]
 
+# For debugging only
 #CMD ["/bin/sh", "-c", "while true; do cat /dev/null; done"]

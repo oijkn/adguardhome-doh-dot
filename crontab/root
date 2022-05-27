@@ -1,4 +1,6 @@
 # Unbound
 1 0 1 */6 * wget -O root.hints https://www.internic.net/domain/named.root
-2 0 1 */6 * mkdir -p /tmp/unbound
-3 0 1 */6 * mv root.hints /tmp/unbound/root.hints
+2 0 1 */6 * mv root.hints /var/lib/unbound/
+
+# Cloudflare
+0 3 * * FRI cloudflared update && systemctl restart cloudflared
