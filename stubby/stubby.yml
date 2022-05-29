@@ -40,7 +40,7 @@ idle_timeout: 9000
 # specify a different port
 listen_addresses:
   - 127.0.0.1@8053
-  -  0::1@8053
+  - 0::1@8053
 
 # Instructs stubby to distribute queries across all available name servers.
 # Set to 0 to treat the upstreams below as an ordered list and use a single

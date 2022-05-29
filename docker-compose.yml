@@ -9,24 +9,12 @@ services:
       - PUID=1000
       - PGID=100
       - TZ=Europe/Paris
-      - LANG=fr_FR.UTF8
-      - LANGUAGE=fr_FR.UTF8
-    tmpfs:
-      - /run
-      - /run/lock
-      - /tmp
-#    labels:
-#      - "com.centurylinklabs.watchtower.enable=true"
     volumes:
-      - /sys/fs/cgroup:/sys/fs/cgroup:ro
-      - ./adguardhome/conf:/opt/AdGuardHome/conf
-      - ./adguardhome/work:/opt/AdGuardHome/work
-      - ./unbound/root.hints:/var/lib/unbound/root.hints
-    cap_add:
-      - NET_ADMIN
+      - ./adguardhome/conf:/opt/adguardhome/conf
+      - ./adguardhome/work:/opt/adguardhome/work
     networks:
       macvlan0:
-        ipv4_address: 192.168.1.110  # IP of the container
+        ipv4_address: 192.168.1.110
     restart: unless-stopped
 
 networks:
@@ -36,8 +24,8 @@ networks:
       parent: eth0
     ipam:
       config:
-        - subnet: 192.168.1.0/24      # Subnet of the container
-          gateway: 192.168.1.1        # Gateway of the container
+        - subnet: 192.168.1.0/24
+          gateway: 192.168.1.1
           ip_range: 192.168.1.100/28  # Usable Host IP Range: 192.168.1.97 - 192.168.1.110
           aux_addresses:
             rpi-srv: 192.168.1.100    # Reserved for RPi Server

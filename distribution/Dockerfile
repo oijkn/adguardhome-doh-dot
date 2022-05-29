@@ -1,12 +1,17 @@
-FROM debian:11-slim as base
+FROM alpine AS builder_stubby
+
+RUN apk add --update alpine-sdk libidn2-dev unbound-dev cmake openssl-dev libev-dev libuv-dev check-dev yaml-dev \
+        && git clone https://github.com/getdnsapi/getdns.git \
+        && cd getdns && git checkout master && git submodule update --init \
+        && mkdir build && cd build \
+        && cmake -DBUILD_STUBBY=ON .. \
+        && make && make install
+
+
+FROM adguard/adguardhome as base
 
 MAINTAINER "Oijkn <https://github.com/oijkn>"
 LABEL name="oijkn/adguardhome-doh-dot"
-
-# Set up the environment
-ENV container docker
-ENV LC_ALL C
-ENV DEBIAN_FRONTEND noninteractive
 
 
 # Raspberry Pi 32 bit = armhf
@@ -14,84 +19,27 @@ ENV DEBIAN_FRONTEND noninteractive
 # PC 64 bit = amd64
 # PC 32 bit = i386
 
+# Install dependencies for building
+RUN apk update && apk add --no-cache \
+    dpkg \
+    libidn2 \
+    libcrypto1.1 \
+    libssl1.1 \
+    openssl \
+    yaml \
+    unbound
 
-RUN apt-get update \
-    && apt-get upgrade -y \
-    && apt-get install -y --no-install-recommends \
-               apt-file \
-               ca-certificates \
-               cron \
-               curl \
-               libcap2-bin \
-               procps \
-               stubby \
-               systemd \
-               systemd-sysv \
-               unbound \
-               wget \
-    && apt-file update \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# Prepare the container for the ystemd-sysv service
-RUN rm -f /lib/systemd/system/multi-user.target.wants/* \
-    /etc/systemd/system/*.wants/* \
-    /lib/systemd/system/local-fs.target.wants/* \
-    /lib/systemd/system/sockets.target.wants/*udev* \
-    /lib/systemd/system/sockets.target.wants/*initctl* \
-    /lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup* \
-    /lib/systemd/system/systemd-update-utmp*
-
-# Download and install AdguardHome
-RUN wget -qO install.sh https://raw.githubusercontent.com/AdguardTeam/AdGuardHome/master/scripts/install.sh \
-    && chmod +x install.sh \
-    && ./install.sh \
-    && rm -f install.sh
-
-# Update AdGuardHome with the latest version depends on the architecture
-RUN set -eux; \
-    ARCH="$(dpkg --print-architecture)"; \
-    case "$ARCH" in \
-        aarch64|arm64) \
-            ADGH_URL="https://static.adguard.com/adguardhome/release/AdGuardHome_linux_arm64.tar.gz"; \
-            ;; \
-        armhf|arm) \
-            ADGH_URL="https://static.adguard.com/adguardhome/release/AdGuardHome_linux_armv7.tar.gz"; \
-            ;; \
-        amd64|x86_64) \
-            ADGH_URL="https://static.adguard.com/adguardhome/release/AdGuardHome_linux_amd64.tar.gz"; \
-            ;; \
-        *) \
-            echo "Unsupported architecture: $ARCH"; \
-            exit 1; \
-            ;; \
-    esac; \
-    wget -qO update.tar.gz "${ADGH_URL}"; \
-    tar -xzf update.tar.gz; \
-    cp -f AdGuardHome/AdGuardHome /opt/AdGuardHome; \
-    rm -rf update.tar.gz AdGuardHome/;
-
-# Create needed directories
-RUN mkdir -p /opt/AdGuardHome/conf \
-    && mkdir -p /opt/AdGuardHome/work
-
-# Replace default configuration
-RUN sed -i 's#cmd="/opt/AdGuardHome/AdGuardHome "-s" "run""#cmd="/opt/AdGuardHome/AdGuardHome "-s" "run" "-c" "/opt/AdGuardHome/conf/AdGuarHome.yaml" "-w" "/opt/AdGuardHome/work""#' \
-    /etc/init.d/AdGuardHome
-
-# Configure setcap for AdGuardHome
-RUN setcap 'cap_net_bind_service=+eip' /opt/AdGuardHome/AdGuardHome
-
-# Get root.hints file for unbound
+# Get root.hints file for Unbound
 RUN wget -O root.hints https://www.internic.net/domain/named.root \
+    && mkdir -p /var/lib/unbound/ \
     && mv root.hints /var/lib/unbound/
 
-# Set up the unbound configuration
-COPY unbound/unbound.conf /etc/unbound/unbound.conf.d/unbound.conf
+# Set up the Unbound conf file
+COPY unbound/unbound.conf /etc/unbound/unbound.conf
 
-# Download and install cloudflare depend on the architecture
+# Download and install Cloudflare depend on the architecture
 RUN set -eux; \
-    ARCH="$(dpkg --print-architecture)"; \
+    ARCH="$(dpkg --print-architecture | awk -F'-' '{print $NF}')"; \
     case "$ARCH" in \
         aarch64|arm64) \
             CLOUDFLARE_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"; \
@@ -111,38 +59,35 @@ RUN set -eux; \
     chmod +x /usr/local/bin/cloudflared; \
     cloudflared --version;
 
-# Configure cloudflared options
-RUN echo "CLOUDFLARED_OPTS=--port 5053 --upstream https://1.1.1.1/dns-query --upstream https://1.0.0.1/dns-query --upstream https://2606:4700:4700::1111/dns-query --upstream https://2606:4700:4700::1001/dns-query" >> /etc/default/cloudflared
-
 # Add user cloudflared and set ownership
-RUN useradd -s /usr/sbin/nologin -r -M cloudflared \
-    && chown cloudflared:cloudflared /etc/default/cloudflared /usr/local/bin/cloudflared
+RUN addgroup -S cloudflared \
+    && adduser -S cloudflared -G cloudflared -s /usr/sbin/nologin -D -H \
+    && chown cloudflared:cloudflared /usr/local/bin/cloudflared
 
-# Copy systemd service file for cloudflared
-COPY cloudflare/cloudflared.service /lib/systemd/system/cloudflared.service
+# Install Stubby from previous build
+RUN mkdir -p /usr/local/var/run
+COPY --from=builder_stubby /usr/local/lib/libgetdns.so.10.2.0 /usr/local/lib/libgetdns.so
+COPY --from=builder_stubby /usr/local/bin/stubby /usr/local/bin/stubby
+COPY --from=builder_stubby /usr/local/share/man/man1/stubby.1 /usr/local/share/man/man1/stubby.1
+COPY --from=builder_stubby /usr/local/share/doc/stubby/AUTHORS /usr/local/share/doc/stubby/AUTHORS
+COPY --from=builder_stubby /usr/local/share/doc/stubby/COPYING /usr/local/share/doc/stubby/COPYING
+COPY --from=builder_stubby /usr/local/share/doc/stubby/ChangeLog /usr/local/share/doc/stubby/ChangeLog
+COPY --from=builder_stubby /usr/local/share/doc/stubby/NEWS /usr/local/share/doc/stubby/NEWS
+COPY --from=builder_stubby /usr/local/share/doc/stubby/README.md /usr/local/share/doc/stubby/README.md
 
-# Configure stubby
-RUN rm -f /etc/stubby/stubby.yml
-COPY stubby/stubby.yml /etc/stubby/stubby.yml
-RUN sed -i 's,DynamicUser=true,#DynamicUser=true,g' /lib/systemd/system/stubby.service
+# Copy the config file for Stubby
+COPY stubby/stubby.yml /usr/local/etc/stubby/stubby.yml
 
-# Configure crontab
-COPY crontab/root /var/spool/cron/crontabs/root
-RUN chmod 600 /var/spool/cron/crontabs/root \
-    && chown root:crontab /var/spool/cron/crontabs/root
+# Set up the cron jobs
+COPY crontab/root /tmp/crontab_root
+RUN cat /tmp/crontab_root >> /var/spool/cron/crontabs/root \
+    && rm -f /tmp/crontab_root
 
-# Enable and start services
-RUN systemctl enable AdGuardHome \
-    && systemctl enable unbound \
-    && systemctl enable cloudflared \
-    && systemctl enable cron \
-    && systemctl enable stubby
+# Copy custom entrypoint script
+COPY distribution/entrypoint.sh /opt
 
-# Mount volume for systemd-sysv
-VOLUME [ "/sys/fs/cgroup" ]
+# Set script permissions executable
+RUN chmod +x /opt/entrypoint.sh
 
-# Run systemd-sysv service
-CMD ["/lib/systemd/systemd"]
-
-# For debugging only
-#CMD ["/bin/sh", "-c", "while true; do cat /dev/null; done"]
+# Run the entrypoint script
+ENTRYPOINT ["/opt/entrypoint.sh"]
