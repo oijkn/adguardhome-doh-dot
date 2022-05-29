@@ -11,11 +11,14 @@ Don't browse the Internet insecurely by sending your DNS requests in clear text 
 
 **_Don't forget to replace `<path_to_data>` to your docker data directory._**
 
-**1. Clone the repository**
-
-`git clone https://github.com/oijkn/adguardhome-doh-dot.git <path_to_data>`
-
-**2. Edit docker-compose.yml file to fit your needs**
+**1. Edit docker-compose.yml file**
+- 
+- Replace `<path_to_data>` to your docker data directory.
+- Replace `192.168.1.110` IP address to your AdGuardHome server IP address.
+- Replace `192.168.1.0/24` subnet to your network subnet.
+- Replace `192.168.1.1` gateway to your network gateway.
+- Replace `192.168.1.100/28` subnet to your macvlan subnet.
+- Replace `192.168.1.100` IP address to your host IP address.
 
 ```dockerfile
 version: "2"                                                           # Docker Compose version for Portainer
@@ -29,24 +32,14 @@ services:
       - PUID=1000                                                      # User ID (UID)
       - PGID=100                                                       # Group ID (GID)
       - TZ=Europe/Paris                                                # Timezone
-      - LANG=fr_FR.UTF8                                                # Language
-      - LANGUAGE=fr_FR.UTF8                                            # Language (same as LANG)
-    tmpfs:
-      - /run
-      - /run/lock
-      - /tmp
-#    labels:
-#      - "com.centurylinklabs.watchtower.enable=true"                  # Watchtower (auto update)
     volumes:
-      - /sys/fs/cgroup:/sys/fs/cgroup:ro
-      - <path_to_data>/adguardhome/conf:/opt/AdGuardHome/conf          # Configure '<path_to_data>' to your needs
-      - <path_to_data>/adguardhome/work:/opt/AdGuardHome/work          # Configure '<path_to_data>' to your needs
-      - <path_to_data>/unbound/root.hints:/var/lib/unbound/root.hints  # Configure '<path_to_data>' to your needs
+      - <path_to_data>/adguardhome/conf:/opt/adguardhome/conf
+      - <path_to_data>/adguardhome/work:/opt/adguardhome/work
     cap_add:
       - NET_ADMIN
     networks:
       macvlan0:
-        ipv4_address: 192.168.1.110                                    # IP of the container for AdGuardHome, configure it to your needs
+        ipv4_address: 192.168.1.110                                    # IP of the container for AdGuardHome
     restart: unless-stopped
 
 networks:
@@ -63,9 +56,12 @@ networks:
             rpi-srv: 192.168.1.100                                     # Reserved for RPi Server (IP of the host)
 ```
 
-**3. Configure the [eth0](https://github.com/oijkn/adguardhome-doh-dot/blob/main/network/interfaces.d/eth0) for AdGuardHome container**
+**2. Configure the [eth0](https://github.com/oijkn/adguardhome-doh-dot/blob/main/network/interfaces.d/eth0) for AdGuardHome container**
 
-You must configure the interface eth0 as like above. Same subnet, same gateway, same IP for the container etc...
+- You must configure the interface eth0 as like above. 
+
+  Same subnet, same gateway, same IP for the container etc...
+- For `macvlan-shim` IP, you must attribute one IP from the range of macvlan subnet
 
 ````shell
 # Ethernet interface (eth0)
@@ -89,40 +85,21 @@ iface eth0 inet static
     post-up ip route add 192.168.1.110/32 dev macvlan-shim
 ````
 
-**4. Configure the host**
+**3. Configure the host**
 
-- Before running our DNS resolvers, it is a good idea to turn off [systemd-resolved](https://www.freedesktop.org/software/systemd/man/systemd-resolved.service.html).
-
-  Edit the file `/etc/systemd/resolved.conf` as below :
-
-```toml
-[Resolve]
-#DNS=
-#FallbackDNS=
-#Domains=
-#LLMNR=yes
-#MulticastDNS=yes
-#DNSSEC=allow-downgrade
-#DNSOverTLS=no
-#Cache=yes
-DNSStubListener=no        # Change this value to 'no' and uncomment
-#ReadEtcHosts=yes
-
-```
-
-- Then, we need to configure the DNS resolvers.
+- You must configure the new nameserver for the host.
 
   Edit the file `/etc/resolv.conf` as below :
 
 ```
-nameserver 192.168.1.110  # IP of the container for AdGuardHome, configure it to your needs
+nameserver 192.168.1.110  # AdGuardHome server IP address
 ```
 
 
 ## ☕ How to use it ?
 
 - After configuring the docker-compose.yml file, you have to start the containers with: `docker-compose up -d`
-- Then, you can access the AdGuardHome web interface at: `http://<IP_of_the_container_for_AdGuardHome>:3000/`
+- Then, you can access the AdGuardHome web interface at: `http://<AdGuardHome_Server_IP>:3000/`
 - `IMPORTANT`: In Listen Interfaces option choose `eth0` (or another name, it depends on your system) and select next
 - Set up `username` & `password` and then login admin panel (port :80)
 - `IMPORTANT`: In general settings, set "Query logs retention" to 24 hours. (I read that for some people logs fill up which slows down Pi and needing a reboot)
