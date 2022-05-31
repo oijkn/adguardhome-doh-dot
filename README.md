@@ -19,6 +19,7 @@ Don't browse the Internet insecurely by sending your DNS requests in clear text 
 - Replace `192.168.1.1` gateway to your network gateway.
 - Replace `192.168.1.100/28` subnet to your macvlan subnet.
 - Replace `192.168.1.100` IP address to your host IP address.
+- Replace `eth0` to your network interface name.
 
 ```dockerfile
 version: "2"                                                           # Docker Compose version for Portainer
@@ -56,11 +57,9 @@ networks:
             rpi-srv: 192.168.1.100                                     # Reserved for RPi Server (IP of the host)
 ```
 
-**2. Configure the [eth0](https://github.com/oijkn/adguardhome-doh-dot/blob/main/network/interfaces.d/eth0) for AdGuardHome container**
+**2. Configure the network interface**
 
-- You must configure the interface eth0 as like above. 
-
-  Same subnet, same gateway, same IP for the container etc...
+- Depending on your network interface name and OS, you may need to configure the network interface of the host to use the macvlan0 network (same subnet, same gateway, same IP for the container etc...).
 - For `macvlan-shim` IP, you must attribute one IP from the range of macvlan subnet
 
 ````shell
@@ -85,16 +84,15 @@ iface eth0 inet static
     post-up ip route add 192.168.1.110/32 dev macvlan-shim
 ````
 
-**3. Configure the host**
+**3. Configure the DNS resolver**
 
-- You must configure the new nameserver for the host.
+- You must configure the new `nameserver` of your host.
 
   Edit the file `/etc/resolv.conf` as below :
 
 ```
 nameserver 192.168.1.110  # AdGuardHome server IP address
 ```
-
 
 ## ☕ How to use it ?
 
