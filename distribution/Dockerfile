@@ -86,8 +86,17 @@ RUN cat /tmp/crontab_root >> /var/spool/cron/crontabs/root \
 # Copy custom entrypoint script
 COPY distribution/entrypoint.sh /opt
 
+# Upgrade Alpine to 3.16 and install the latest version of packages
+RUN sed -i 's#3.13#3.16#g' /etc/apk/repositories \
+    && apk update \
+    && apk upgrade --available --no-cache \
+    && sync
+
 # Set script permissions executable
 RUN chmod +x /opt/entrypoint.sh
 
 # Run the entrypoint script
 ENTRYPOINT ["/opt/entrypoint.sh"]
+
+# For debugging only
+#CMD ["/bin/sh", "-c", "while true; do cat /dev/null; done"]
