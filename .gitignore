@@ -1,6 +1,3 @@
-# Ignore sh files
-*.sh
-
 # Ignore scripts directory
 scripts/
 
